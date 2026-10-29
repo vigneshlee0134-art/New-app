@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Market Pro - TradingView Setup & Signals</title>
+  <style>
+    :root {
+      --bg: #0b0e14;
+      --panel: #131722;
+      --border: #2a2e39;
+      --text: #d1d4dc;
+      --muted: #787b86;
+      --accent: #2962ff;
+      --up: #089981;
+      --down: #f23645;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    
+    /* Top Bar */
+    .topbar {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .symbol-select {
+      background: #1e222d;
+      color: #fff;
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .btn {
+      background: #1e222d;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn.signal-on { background: var(--up); color: #fff; border-color: var(--up); }
+    .price-badge {
+      margin-left: auto;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    /* Indicator Bar */
+    .ind-bar {
+      background: #10141d;
+      border-bottom: 1px solid var(--border);
+      padding: 6px 10px;
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .chip {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      background: #1e222d;
+      color: var(--muted);
+      border: 1px solid transparent;
+      cursor: pointer;
+    }
+    .chip.on {
+      color: #fff;
+      border-color: var(--accent);
+      background: rgba(41, 98, 255, 0.2);
+    }
+
+    /* Workspace */
+    .workspace {
+      flex: 1;
+      display: flex;
+      position: relative;
+      overflow: hidden;
+    }
+    .left-tools {
+      width: 42px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 0;
+      gap: 8px;
+    }
+    .tool-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text);
+      font-size: 15px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .tool-btn.active { background: var(--accent); color: #fff; }
+
+    .chart-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    #mainCanvas { width: 100%; flex: 1; display: block; touch-action: none; }
+    #oscCanvas { width: 100%; height: 130px; border-top: 1px solid var(--border); display: block; }
+    #tvWidgetContainer {
+      position: absolute;
+      inset: 0;
+      background: var(--bg);
+      display: none;
+      z-index: 10;
+    }
+
+    /* HUD */
+    .hud {
+      position: absolute;
+      top: 8px;
+      left: 10px;
+      pointer-events: none;
+      font-size: 11px;
+      line-height: 1.5;
+      background: rgba(19, 23, 34, 0.78);
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+
+    /* Bottom Trade Panel */
+    .bottom-bar {
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .trade-btns { display: flex; gap: 8px; }
+    .buy-btn, .sell-btn {
+      border: none;
+      padding: 8px 18px;
+      border-radius: 6px;
+      font-weight: 700;
+      color: #fff;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .buy-btn { background: var(--up); }
+    .sell-btn { background: var(--down); }
+    .pnl-box { font-size: 12px; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Controls -->
+  <div class="topbar">
+    <select class="symbol-select" id="symbolSelect">
+      <option value="NSE:NIFTY">NIFTY 50</option>
+      <option value="NSE:BANKNIFTY">BANKNIFTY</option>
+      <option value="NSE:RELIANCE">RELIANCE</option>
+      <option value="NSE:RECLTD">REC LTD</option>
+      <option value="NSE:VEDL">VEDANTA</option>
+      <option value="BINANCE:BTCUSDT">BTCUSDT</option>
+    </select>
+
+    <button class="btn active" onclick="setTF('1m', this)">1m</button>
+    <button class="btn" onclick="setTF('5m', this)">5m</button>
+    <button class="btn" onclick="setTF('15m', this)">15m</button>
+    <button class="btn" onclick="setTF('1D', this)">1D</button>
+
+    <button class="btn" id="haBtn" onclick="toggleHA()">Heikin Ashi</button>
+    <button class="btn signal-on" id="sigBtn" onclick="toggleSignals()">Signals: ON</button>
+    <button class="btn" id="tvBtn" onclick="toggleTVWidget()">Live TradingView</button>
+
+    <div class="price-badge" id="livePrice">24,850.00</div>
+  </div>
+
+  <!-- Indicator Toggles -->
+  <div class="ind-bar">
+    <span class="chip on" onclick="toggleInd('ema9', this)">EMA 9</span>
+    <span class="chip on" onclick="toggleInd('ema20', this)">EMA 20</span>
+    <span class="chip" onclick="toggleInd('ema50', this)">EMA 50</span>
+    <span class="chip on" onclick="toggleInd('vwap', this)">VWAP</span>
+    <span class="chip on" onclick="toggleInd('supertrend', this)">Supertrend</span>
+    <span class="chip" onclick="toggleInd('bb', this)">Bollinger</span>
+    <span class="chip on" onclick="toggleInd('cpr', this)">CPR Levels</span>
+    <span class="chip on" onclick="toggleInd('sr', this)">Auto S/R</span>
+    <span class="chip on" onclick="setOsc('rsi', this)">RSI (14)</span>
+    <span class="chip" onclick="setOsc('macd', this)">MACD</span>
+    <span class="chip" onclick="setOsc('atr', this)">ATR (14)</span>
+  </div>
+
+  <!-- Main Chart & Tools -->
+  <div class="workspace">
+    <div class="left-tools">
+      <button class="tool-btn active" title="Cursor" onclick="setTool('cursor', this)">✚</button>
+      <button class="tool-btn" title="Trendline" onclick="setTool('line', this)">╱</button>
+      <button class="tool-btn" title="Horizontal Line" onclick="setTool('hline', this)">━</button>
+      <button class="tool-btn" title="Clear Drawings" onclick="clearDrawings()">🗑</button>
+    </div>
+
+    <div class="chart-area">
+      <div class="hud" id="hudInfo">Loading chart...</div>
+      <canvas id="mainCanvas"></canvas>
+      <canvas id="oscCanvas"></canvas>
+      <div id="tvWidgetContainer"></div>
+    </div>
+  </div>
+
+  <!-- Bottom Order & P&L Bar -->
+  <div class="bottom-bar">
+    <div class="trade-btns">
+      <button class="buy-btn" onclick="placeOrder('BUY')">BUY / LONG</button>
+      <button class="sell-btn" onclick="placeOrder('SELL')">SELL / SHORT</button>
+    </div>
+    <div class="pnl-box" id="posStatus">No Active Position | Virtual P&L: ₹0.00</div>
+  </div>
+
+  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+  <script>
+    const mainCanvas = document.getElementById('mainCanvas');
+    const ctx = mainCanvas.getContext('2d');
+    const oscCanvas = document.getElementById('oscCanvas');
+    const octx = oscCanvas.getContext('2d');
+
+    let candles = [];
+    let useHA = false;
+    let showSignals = true;
+    let activeOsc = 'rsi';
+    let currentTool = 'cursor';
+    let drawings = [];
+    let tempPoint = null;
+    let position = null;
+    let tvMode = false;
+
+    const inds = {
+      ema9: true, ema20: true, ema50: false,
+      vwap: true, supertrend: true, bb: false,
+      cpr: true, sr: true
+    };
+
+    const basePrices = {
+      'NSE:NIFTY': 24850,
+      'NSE:BANKNIFTY': 51400,
+      'NSE:RELIANCE': 2950,
+      'NSE:RECLTD': 525,
+      'NSE:VEDL': 465,
+      'BINANCE:BTCUSDT': 68500
+    };
+
+    function generateData(base) {
+      candles = [];
+      let p = base;
+      let cumPV = 0, cumV = 0;
+      for (let i = 0; i < 80; i++) {
+        let vol = Math.floor(Math.random() * 900 + 200);
+        let delta = (Math.random() - 0.49) * (base * 0.004);
+        let o = p;
+        let c = p + delta;
+        let h = Math.max(o, c) + Math.random() * (base * 0.002);
+        let l = Math.min(o, c) - Math.random() * (base * 0.002);
+        p = c;
+        let typ = (h + l + c) / 3;
+        cumPV += typ * vol;
+        cumV += vol;
+        candles.push({ o, h, l, c, v: vol, vwap: cumPV / cumV });
+      }
+      computeIndicators();
+    }
+
+    function calcEMA(len) {
+      let k = 2 / (len + 1);
+      let out = [];
+      let ema = candles[0].c;
+      for (let i = 0; i < candles.length; i++) {
+        ema = candles[i].c * k + ema * (1 - k);
+        out.push(ema);
+      }
+      return out;
+    }
+
+    function computeIndicators() {
+      const e9 = calcEMA(9);
+      const e20 = calcEMA(20);
+      const e50 = calcEMA(50);
+
+      for (let i = 0; i < candles.length; i++) {
+        candles[i].ema9 = e9[i];
+        candles[i].ema20 = e20[i];
+        candles[i].ema50 = e50[i];
+
+        // ATR 14
+        if (i === 0) {
+          candles[i].tr = candles[i].h - candles[i].l;
+          candles[i].atr = candles[i].tr;
+        } else {
+          let tr = Math.max(
+            candles[i].h - candles[i].l,
+            Math.abs(candles[i].h - candles[i - 1].c),
+            Math.abs(candles[i].l - candles[i - 1].c)
+          );
+          candles[i].tr = tr;
+          candles[i].atr = (candles[i - 1].atr * 13 + tr) / 14;
+        }
+
+        // Supertrend (10, 3) simplified
+        let mid = (candles[i].h + candles[i].l) / 2;
+        candles[i].stUp = candles[i].c >= candles[i].ema20;
+        candles[i].stVal = candles[i].stUp ? mid - 2.2 * candles[i].atr : mid + 2.2 * candles[i].atr;
+
+        // RSI 14
+        if (i < 14) {
+          candles[i].rsi = 50;
+        } else {
+          let gains = 0, losses = 0;
+          for (let j = i - 13; j <= i; j++) {
+            let diff = candles[j].c - candles[j - 1].c;
+            if (diff >= 0) gains += diff; else losses -= diff;
+          }
+          let rs = (gains / 14) / ((losses / 14) || 0.0001);
+          candles[i].rsi = 100 - (100 / (1 + rs));
+        }
+
+        // Buy/Sell crossover signal
+        candles[i].signal = null;
+        if (i > 1) {
+          if (candles[i - 1].ema9 <= candles[i - 1].ema20 && candles[i].ema9 > candles[i].ema20) {
+            candles[i].signal = 'BUY';
+          } else if (candles[i - 1].ema9 >= candles[i - 1].ema20 && candles[i].ema9 < candles[i].ema20) {
+            candles[i].signal = 'SELL';
+          }
+        }
+      }
+    }
+
+    function resize() {
+      mainCanvas.width = mainCanvas.clientWidth;
+      mainCanvas.height = mainCanvas.clientHeight;
+      oscCanvas.width = oscCanvas.clientWidth;
+      oscCanvas.height = oscCanvas.clientHeight;
+      draw();
+    }
+    window.addEventListener('resize', resize);
+
+    function draw() {
+      if (!candles.length) return;
+      const W = mainCanvas.width, H = mainCanvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      const padR = 65;
+      const plotW = W - padR;
+      const maxP = Math.max(...candles.map(c => c.h)) * 1.001;
+      const minP = Math.min(...candles.map(c => c.l)) * 0.999;
+      const yOf = p => H - ((p - minP) / (maxP - minP)) * (H - 30) - 15;
+      const xOf = i => (i + 0.5) * (plotW / candles.length);
+
+      // Grid
+      ctx.strokeStyle = '#1e222d';
+      ctx.lineWidth = 1;
+      for (let g = 0; g < 5; g++) {
+        let y = (H / 5) * g;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+        let pVal = maxP - (g / 5) * (maxP - minP);
+        ctx.fillStyle = '#787b86';
+        ctx.font = '10px sans-serif';
+        ctx.fillText(pVal.toFixed(1), plotW + 6, y + 12);
+      }
+
+      // CPR Levels
+      if (inds.cpr) {
+        let last = candles[candles.length - 1];
+        let pivot = (last.h + last.l + last.c) / 3;
+        let bc = (last.h + last.l) / 2;
+        let tc = pivot - bc + pivot;
+        [
+          { v: tc, c: '#9c27b0', lbl: 'TC' },
+          { v: pivot, c: '#ff9800', lbl: 'P' },
+          { v: bc, c: '#9c27b0', lbl: 'BC' }
+        ].forEach(lv => {
+          let y = yOf(lv.v);
+          ctx.strokeStyle = lv.c;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(plotW, y); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = lv.c;
+          ctx.fillText(lv.lbl, plotW - 22, y - 4);
+        });
+      }
+
+      // Auto Support & Resistance
+      if (inds.sr) {
+        let res = Math.max(...candles.slice(-40).map(c => c.h));
+        let sup = Math.min(...candles.slice(-40).map(c => c.l));
+        ctx.strokeStyle = 'rgba(242, 54, 69, 0.6)';
+        ctx.beginPath(); ctx.moveTo(0, yOf(res)); ctx.lineTo(plotW, yOf(res)); ctx.stroke();
+        ctx.strokeStyle = 'rgba(8, 153, 129, 0.6)';
+        ctx.beginPath(); ctx.moveTo(0, yOf(sup)); ctx.lineTo(plotW, yOf(sup)); ctx.stroke();
+      }
+
+      // Candles / Heikin Ashi
+      const cw = Math.max(3, (plotW / candles.length) * 0.65);
+      for (let i = 0; i < candles.length; i++) {
+        let c = candles[i];
+        let oVal = c.o, cVal = c.c, hVal = c.h, lVal = c.l;
+        if (useHA && i > 0) {
+          cVal = (c.o + c.h + c.l + c.c) / 4;
+          oVal = (candles[i - 1].o + candles[i - 1].c) / 2;
+        }
+        let x = xOf(i);
+        let up = cVal >= oVal;
+        ctx.strokeStyle = up ? '#089981' : '#f23645';
+        ctx.fillStyle = up ? '#089981' : '#f23645';
+        ctx.beginPath();
+        ctx.moveTo(x, yOf(hVal));
+        ctx.lineTo(x, yOf(lVal));
+        ctx.stroke();
+
+        let top = yOf(Math.max(oVal, cVal));
+        let bot = yOf(Math.min(oVal, cVal));
+        ctx.fillRect(x - cw / 2, top, cw, Math.max(2, bot - top));
+
+        // Signals
+        if (showSignals && c.signal) {
+          ctx.fillStyle = c.signal === 'BUY' ? '#089981' : '#f23645';
+          let sy = c.signal === 'BUY' ? yOf(lVal) + 14 : yOf(hVal) - 8;
+          ctx.font = 'bold 10px sans-serif';
+          ctx.fillText(c.signal === 'BUY' ? '▲ BUY' : '▼ SELL', x - 16, sy);
+        }
+      }
+
+      // Line Overlays helper
+      function plotLine(key, color, width = 1.5) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        candles.forEach((c, i) => {
+          let x = xOf(i), y = yOf(c[key]);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      }
+
+      if (inds.ema9) plotLine('ema9', '#00bcd4');
+      if (inds.ema20) plotLine('ema20', '#ffeb3b');
+      if (inds.ema50) plotLine('ema50', '#e91e63');
+      if (inds.vwap) plotLine('vwap', '#ff9800', 2);
+      if (inds.supertrend) plotLine('stVal', '#00e676', 1.5);
+
+      // User Drawings
+      drawings.forEach(d => {
+        ctx.strokeStyle = '#2962ff';
+        ctx.lineWidth = 2;
+        if (d.type === 'hline') {
+          let y = yOf(d.p1);
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(plotW, y); ctx.stroke();
+        } else if (d.type === 'line') {
+          ctx.beginPath();
+          ctx.moveTo(xOf(d.i1), yOf(d.p1));
+          ctx.lineTo(xOf(d.i2), yOf(d.p2));
+          ctx.stroke();
+        }
+      });
+
+      // Live HUD & Price
+      let last = candles[candles.length - 1];
+      let badge = document.getElementById('livePrice');
+      badge.textContent = last.c.toFixed(2);
+      badge.style.background = last.c >= last.o ? 'rgba(8,153,129,0.2)' : 'rgba(242,54,69,0.2)';
+      badge.style.color = last.c >= last.o ? '#089981' : '#f23645';
+
+      document.getElementById('hudInfo').innerHTML =
+        `<b>O:</b> ${last.o.toFixed(1)} <b>H:</b> ${last.h.toFixed(1)} <b>L:</b> ${last.l.toFixed(1)} <b>C:</b> ${last.c.toFixed(1)}<br>` +
+        `EMA9: ${last.ema9.toFixed(1)} | EMA20: ${last.ema20.toFixed(1)} | VWAP: ${last.vwap.toFixed(1)}<br>` +
+        `ATR SL: ${(last.c - 1.5 * last.atr).toFixed(1)} | Target: ${(last.c + 2.5 * last.atr).toFixed(1)}`;
+
+      if (position) {
+        let diff = position.side === 'BUY' ? (last.c - position.entry) : (position.entry - last.c);
+        let pnl = diff * 50;
+        document.getElementById('posStatus').innerHTML =
+          `<b>${position.side}</b> @ ${position.entry.toFixed(1)} | P&L: <span style="color:${pnl >= 0 ? '#089981' : '#f23645'}">₹${pnl.toFixed(2)}</span>`;
+      }
+
+      drawOscillator(plotW);
+    }
+
+    function drawOscillator(plotW) {
+      const W = oscCanvas.width, H = oscCanvas.height;
+      octx.clearRect(0, 0, W, H);
+      octx.fillStyle = '#787b86';
+      octx.font = '11px sans-serif';
+      octx.fillText(activeOsc.toUpperCase(), 10, 16);
+
+      const xOf = i => (i + 0.5) * (plotW / candles.length);
+
+      if (activeOsc === 'rsi') {
+        octx.strokeStyle = '#2a2e39';
+        [30, 70].forEach(lvl => {
+          let y = H - (lvl / 100) * (H - 20) - 10;
+          octx.beginPath(); octx.moveTo(0, y); octx.lineTo(plotW, y); octx.stroke();
+        });
+        octx.strokeStyle = '#b388ff';
+        octx.lineWidth = 1.5;
+        octx.beginPath();
+        candles.forEach((c, i) => {
+          let x = xOf(i), y = H - (c.rsi / 100) * (H - 20) - 10;
+          if (i === 0) octx.moveTo(x, y); else octx.lineTo(x, y);
+        });
+        octx.stroke();
+      } else if (activeOsc === 'atr') {
+        let maxA = Math.max(...candles.map(c => c.atr));
+        let minA = Math.min(...candles.map(c => c.atr));
+        octx.strokeStyle = '#ff9800';
+        octx.beginPath();
+        candles.forEach((c, i) => {
+          let x = xOf(i);
+          let y = H - ((c.atr - minA) / ((maxA - minA) || 1)) * (H - 30) - 10;
+          if (i === 0) octx.moveTo(x, y); else octx.lineTo(x, y);
+        });
+        octx.stroke();
+      } else if (activeOsc === 'macd') {
+        candles.forEach((c, i) => {
+          let m = c.ema9 - c.ema20;
+          let x = xOf(i);
+          let mid = H / 2;
+          let barH = Math.max(-40, Math.min(40, m * 2));
+          octx.fillStyle = m >= 0 ? '#089981' : '#f23645';
+          octx.fillRect(x - 2, mid, 4, -barH);
+        });
+      }
+    }
+
+    // Touch / Click Drawing
+    mainCanvas.addEventListener('pointerdown', e => {
+      if (currentTool === 'cursor') return;
+      const rect = mainCanvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const maxP = Math.max(...candles.map(c => c.h)) * 1.001;
+      const minP = Math.min(...candles.map(c => c.l)) * 0.999;
+      const price = maxP - ((y - 15) / (mainCanvas.height - 30)) * (maxP - minP);
+      const idx = Math.floor((x / (mainCanvas.width - 65)) * candles.length);
+
+      if (currentTool === 'hline') {
+        drawings.push({ type: 'hline', p1: price });
+        draw();
+      } else if (currentTool === 'line') {
+        if (!tempPoint) {
+          tempPoint = { i1: idx, p1: price };
+        } else {
+          drawings.push({ type: 'line', i1: tempPoint.i1, p1: tempPoint.p1, i2: idx, p2: price });
+          tempPoint = null;
+          draw();
+        }
+      }
+    });
+
+    function toggleInd(k, el) { inds[k] = !inds[k]; el.classList.toggle('on'); draw(); }
+    function setOsc(k, el) {
+      activeOsc = k;
+      document.querySelectorAll('.ind-bar .chip').forEach(c => {
+        if (['RSI (14)', 'MACD', 'ATR (14)'].includes(c.textContent)) c.classList.remove('on');
+      });
+      el.classList.add('on');
+      draw();
+    }
+    function setTF(tf, el) {
+      document.querySelectorAll('.topbar .btn').forEach(b => {
+        if (['1m','5m','15m','1D'].includes(b.textContent)) b.classList.remove('active');
+      });
+      el.classList.add('active');
+      generateData(basePrices[document.getElementById('symbolSelect').value]);
+      draw();
+    }
+    function toggleHA() { useHA = !useHA; document.getElementById('haBtn').classList.toggle('active'); draw(); }
+    function toggleSignals() {
+      showSignals = !showSignals;
+      const b = document.getElementById('sigBtn');
+      b.textContent = showSignals ? 'Signals: ON' : 'Signals: OFF';
+      b.classList.toggle('signal-on');
+      draw();
+    }
+    function setTool(t, el) {
+      currentTool = t;
+      tempPoint = null;
+      document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+      el.classList.add('active');
+    }
+    function clearDrawings() { drawings = []; draw(); }
+    function placeOrder(side) {
+      let last = candles[candles.length - 1].c;
+      position = { side, entry: last };
+      draw();
+    }
+
+    function toggleTVWidget() {
+      tvMode = !tvMode;
+      const box = document.getElementById('tvWidgetContainer');
+      const btn = document.getElementById('tvBtn');
+      btn.classList.toggle('active');
+      if (tvMode) {
+        box.style.display = 'block';
+        box.innerHTML = '<div id="tv_chart" style="width:100%;height:100%;"></div>';
+        new TradingView.widget({
+          autosize: true,
+          symbol: document.getElementById('symbolSelect').value,
+          interval: "5",
+          timezone: "Asia/Kolkata",
+          theme: "dark",
+          style: "1",
+          locale: "en",
+          Studies: ["STD;EMA", "STD;VWAP", "STD;Supertrend", "STD;RSI"],
+          container_id: "tv_chart"
+        });
+      } else {
+        box.style.display = 'none';
+      }
+    }
+
+    document.getElementById('symbolSelect').addEventListener('change', e => {
+      generateData(basePrices[e.target.value]);
+      if (tvMode) { tvMode = false; toggleTVWidget(); }
+      draw();
+    });
+
+    // Live tick simulation
+    setInterval(() => {
+      if (!candles.length) return;
+      let last = candles[candles.length - 1];
+      let step = (Math.random() - 0.495) * (last.c * 0.0008);
+      last.c += step;
+      if (last.c > last.h) last.h = last.c;
+      if (last.c < last.l) last.l = last.c;
+      computeIndicators();
+      draw();
+    }, 1200);
+
+    generateData(basePrices['NSE:NIFTY']);
+    setTimeout(resize, 50);
+  </script>
+</body>
+</html>
